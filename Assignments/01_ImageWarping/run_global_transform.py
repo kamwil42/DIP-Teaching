@@ -21,6 +21,47 @@ def apply_transform(image, scale, rotation, translation_x, translation_y, flip_h
     ### FILL: Apply Composition Transform 
     # Note: for scale and rotation, implement them around the center of the image （围绕图像中心进行放缩和旋转）
 
+    try:
+        height, width = image.shape[:2]
+        center = (width//2, height//2)
+
+        # Flip
+        if flip_horizontal:
+            flip_matrix = np.array([
+                [-1, 0, width],
+                [0, 1, 0]
+            ], dtype=np.float32)
+        else:
+            flip_matrix = np.array([
+                [1, 0, 0],
+                [0, 1, 0]
+            ], dtype=np.float32)
+
+        # Rotation and scale
+        rotation_scale_matrix = cv2.getRotationMatrix2D(center, rotation, scale)
+
+        # Translation
+        translation_matrix = np.array([
+            [1, 0, translation_x],
+            [0, 1, -translation_y]
+        ], dtype=np.float32)
+
+        # Convert to 3x3 since Open CV uses 2x3 matrices, and we need to multiply them
+        flip_3x3 = to_3x3(flip_matrix)
+        rotation_scale_3x3 = to_3x3(rotation_scale_matrix)
+        translation_3x3 = to_3x3(translation_matrix)
+
+        # Flip -> Rotate and scale -> Translate
+        transformation_matrix = np.matmul(translation_3x3, np.matmul(rotation_scale_3x3, flip_3x3))
+
+        # Return to the 2x3 matrix
+        final_matrix = transformation_matrix[:2, :]
+
+        transformed_image = cv2.warpAffine(image, final_matrix, (width, height))
+
+    except Exception as e:
+        print("An exception occurred: {}".format(e))
+
     return transformed_image
 
 # Gradio Interface
