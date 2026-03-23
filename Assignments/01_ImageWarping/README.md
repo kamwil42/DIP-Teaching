@@ -4,7 +4,7 @@
 
 This repository is Kamila Wilczyńska's implementation of Assignment_01 of DIP. 
 
-<img src="pics/teaser.png" alt="alt text" width="800">
+<img src="pics/teaser1.png" alt="alt text" width="800">
 
 ## Requirements
 
@@ -30,10 +30,10 @@ python run_point_transform.py
 
 ## Results (need add more result images)
 ### Basic Transformation
-<img src="pics/global_demo.gif" alt="alt text" width="800">
+<img src="pics/global_demo1.gif" alt="alt text" width="800">
 
 ### Point Guided Deformation:
-<img src="pics/point_demo.gif" alt="alt text" width="800">
+<img src="pics/point_demo1.gif" alt="alt text" width="800">
 
 #### Point Guided Deformation Points Removal:
 <img src="pics/point_remove_demo.gif" alt="alt text" width="800">
