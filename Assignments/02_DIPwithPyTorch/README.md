@@ -43,8 +43,10 @@ Users can manually select a polygon region from a foreground image and seamlessl
 
 **Gradient consistency is enforced using a Laplacian kernel:**
 
-```math
-begin{bmatrix}0 &1 & 0\\1 & -4 & 1\\0 &1 &0 \end{bmatrix}
+```text
+0  1  0
+1 -4  1
+0  1  0
 ```
 
 **Loss:**
