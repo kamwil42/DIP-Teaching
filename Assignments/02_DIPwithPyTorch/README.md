@@ -10,7 +10,7 @@ To install requirements:
 python -m pip install -r requirements.txt
 ```
 
-## Task 1 — Poisson Image Blending with PyTorch
+## Poisson Image Blending with PyTorch
 
 ### Running
 
@@ -18,14 +18,13 @@ To run Poisson image editing:
 ```setup
 python run_blending_gradio.py
 ```
-The provided code will train the model on the [Facades Dataset](https://cmp.felk.cvut.cz/~tylecr1/facade/).
 
 ### Overview
 
 This task implements an interactive Poisson Image Blending system using Gradio and PyTorch.
 Users can manually select a polygon region from a foreground image and seamlessly blend it into a background image using gradient-domain optimization.
 
-The overall workflow is:
+**The overall workflow is:**
 
 1. User uploads foreground and background images.
 2. User clicks on the foreground image to define a polygon region.
@@ -44,7 +43,9 @@ The overall workflow is:
 
 **Gradient consistency is enforced using a Laplacian kernel:**
 
-$\begin{bmatrix}0 &1 & 0\\1 & -4 & 1\\0 &1 &0 \end{bmatrix}$
+```math
+begin{bmatrix}0 &1 & 0\\1 & -4 & 1\\0 &1 &0 \end{bmatrix}
+```
 
 **Loss:**
 - L = MSE(Laplace(F), Laplace(B)) + boundary constraint
@@ -80,6 +81,7 @@ To run Pix2Pix training, enter Pix2Pix folder and run:
 bash download_facades_dataset.sh
 python train.py
 ```
+The provided code will train the model on the [Facades Dataset](https://cmp.felk.cvut.cz/~tylecr1/facade/).
 
 ### Overview
 
