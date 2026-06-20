@@ -46,12 +46,28 @@ class GaussianRenderer(nn.Module):
         # 4. Transform covariance to camera space and then to 2D
         # Compute Jacobian of perspective projection
         J_proj = torch.zeros((N, 2, 3), device=means3D.device)
-        ### FILL:
-        ### J_proj = ...
+
+        fx = K[0, 0]
+        fy = K[1, 1]
+
+        x = cam_points[:, 0]
+        y = cam_points[:, 1]
+        z = depths
+
+        J_proj[:, 0, 0] = fx / z
+        J_proj[:, 0, 2] = -fx * x / (z * z)
+
+        J_proj[:, 1, 1] = fy / z
+        J_proj[:, 1, 2] = -fy * y / (z * z)
         
         # Transform covariance to camera space
-        ### FILL: Aplly world to camera rotation to the 3d covariance matrix
-        ### covs_cam = ...  # (N, 3, 3)
+        covs_cam = torch.bmm(
+            R.unsqueeze(0).expand(N, -1, -1),
+            torch.bmm(
+                covs3d,
+                R.T.unsqueeze(0).expand(N, -1, -1)
+            )
+        )
         
         # Project to 2D
         covs2D = torch.bmm(J_proj, torch.bmm(covs_cam, J_proj.permute(0, 2, 1)))  # (N, 2, 2)
@@ -75,8 +91,24 @@ class GaussianRenderer(nn.Module):
         covs2D = covs2D + eps * torch.eye(2, device=covs2D.device).unsqueeze(0)
         
         # Compute determinant for normalization
-        ### FILL: compute the gaussian values
-        ### gaussian = ... ## (N, H, W)
+        det_covs = torch.det(covs2D)
+        inv_covs = torch.inverse(covs2D)
+
+        dx_col = dx.unsqueeze(-1)
+
+        mahal = torch.matmul(
+            dx.unsqueeze(-2),
+            torch.matmul(
+                inv_covs[:, None, None, :, :],
+                dx_col
+            )
+        ).squeeze(-1).squeeze(-1)
+
+        P = -0.5 * mahal
+
+        norm = 1.0 / (2 * np.pi * torch.sqrt(det_covs))
+
+        gaussian = norm[:, None, None] * torch.exp(P)
     
         return gaussian
 
@@ -118,8 +150,17 @@ class GaussianRenderer(nn.Module):
         colors = colors.permute(0, 2, 3, 1)  # (N, H, W, 3)
         
         # 7. Compute weights
-        ### FILL:
-        ### weights = ... # (N, H, W)
+        eps = 1e-6
+
+        transmittance = torch.cumprod(
+            torch.cat([
+                torch.ones_like(alphas[:1]),
+                1.0 - alphas[:-1] + eps
+            ], dim=0),
+            dim=0
+        )
+
+        weights = transmittance * alphas
         
         # 8. Final rendering
         rendered = (weights.unsqueeze(-1) * colors).sum(dim=0)  # (H, W, 3)

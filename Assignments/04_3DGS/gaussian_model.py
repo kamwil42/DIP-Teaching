@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch3d.ops.knn import knn_points
+#from pytorch3d.ops.knn import knn_points
 from typing import Dict, Tuple
 from dataclasses import dataclass
 
@@ -48,20 +48,48 @@ class GaussianModel(nn.Module):
         initial_rotations[:, 0] = 1.0  # w=1, x=y=z=0 for identity
         self.rotations = nn.Parameter(initial_rotations)
 
-    def _init_scales(self, points3D_xyz: torch.Tensor) -> None:
-        """Initialize scales based on local point density"""
-        # Compute mean distance to K nearest neighbors
+    def _init_scales(self, points3D_xyz):
         K = min(50, self.n_points - 1)
-        points = points3D_xyz.unsqueeze(0)  # Add batch dimension
-        dists, _, _ = knn_points(points, points, K=K)
-        
-        # Use log space for unconstrained optimization
-        mean_dists = torch.mean(torch.sqrt(dists[0]), dim=1, keepdim=True) * 2.
-        mean_dists = mean_dists.clamp(0.2*torch.median(mean_dists), 3.0*torch.median(mean_dists))  # Prevent infinite scales
-        print('init_scales', torch.min(mean_dists), torch.max(mean_dists))
-        
+
+        points = torch.as_tensor(
+            points3D_xyz,
+            dtype=torch.float32
+        )
+
+        # (N,N)
+        dist_mat = torch.cdist(points, points)
+
+        # remove self-neighbor
+        dist_mat.fill_diagonal_(float('inf'))
+
+        # K nearest neighbors
+        knn_dists, _ = torch.topk(
+            dist_mat,
+            k=K,
+            largest=False,
+            dim=1
+        )
+
+        mean_dists = knn_dists.mean(dim=1, keepdim=True) * 2.0
+
+        median = torch.median(mean_dists)
+
+        mean_dists = mean_dists.clamp(
+            0.2 * median,
+            3.0 * median
+        )
+
+        print(
+            'init_scales',
+            mean_dists.min(),
+            mean_dists.max()
+        )
+
         log_scales = torch.log(mean_dists)
-        self.scales = nn.Parameter(log_scales.repeat(1, 3))
+
+        self.scales = nn.Parameter(
+            log_scales.repeat(1, 3)
+        )
 
     def _init_colors(self, points3D_rgb: torch.Tensor) -> None:
         """Initialize colors in logit space for sigmoid activation"""
@@ -108,10 +136,11 @@ class GaussianModel(nn.Module):
         # Convert scales from log space and create diagonal matrices
         scales = torch.exp(self.scales)
         S = torch.diag_embed(scales)
-        
-        # Compute covariance
-        ### FILL:
-        ### Covs3d = ...
+
+        # Eq.(6) in paper
+        Covs3d = R @ S @ S.transpose(-1, -2) @ R.transpose(-1, -2)
+
+        return Covs3d
         
         return Covs3d
 

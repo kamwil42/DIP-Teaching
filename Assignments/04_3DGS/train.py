@@ -1,6 +1,7 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
+import psutil
+import time
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from pathlib import Path
 import argparse
@@ -16,11 +17,11 @@ from data_utils import ColmapDataset
 
 @dataclass
 class TrainConfig:
-    num_epochs: int = 200
+    num_epochs: int = 21
     batch_size: int = 1
     learning_rate: float = 0.01
     grad_clip: float = 1.0
-    save_every: int = 20
+    save_every: int = 10
     checkpoint_dir: str = "checkpoints"
     log_dir: str = "logs"
     debug_every: int = 1  # Save debug images every N epochs
@@ -38,6 +39,12 @@ class GaussianTrainer:
         self.renderer = renderer.to(device)
         self.config = config
         self.device = device
+
+        # For final comparison
+        self.train_start_time = None
+        self.total_iterations = 0
+        self.iter_times = []
+        self.peak_ram_mb = 0
         
         # Initialize optimizer
         optable_params = [
@@ -128,13 +135,17 @@ class GaussianTrainer:
         # Get gaussian parameters (only need to compute once)
         with torch.no_grad():
             gaussian_params = self.model()
-        
+
+        render_times = []
+
         # Render frames
         for data_item in tqdm(dataset, desc="Rendering frames"):
             # Convert camera poses to torch tensors
             R_torch = data_item['R'].to(self.device)
             t_torch = data_item['t'].to(self.device).reshape(-1, 3)
-            
+
+            render_start = time.time()
+
             # Render frame
             with torch.no_grad():
                 rendered_image = self.renderer(
@@ -146,6 +157,10 @@ class GaussianTrainer:
                     R=R_torch.squeeze(0),
                     t=t_torch.squeeze(0),
                 )
+
+            render_times.append(
+                time.time() - render_start
+            )
             
             # Convert to numpy and BGR format for OpenCV
             frame = rendered_image.cpu().numpy()
@@ -154,7 +169,17 @@ class GaussianTrainer:
             vis = cv2.cvtColor(np.concatenate((ori_img, frame), axis=1), cv2.COLOR_RGB2BGR)
             # Write frame
             out.write(vis)
-        
+
+        avg_render_time = np.mean(render_times)
+        fps = 1.0 / avg_render_time
+
+        print("\n===== Rendering Stats =====")
+        print(f"Avg render time: {avg_render_time:.4f} sec")
+        print(f"FPS: {fps:.2f}")
+
+        self.avg_render_time = avg_render_time
+        self.fps = fps
+
         # Release video writer
         out.release()
         print(f"Video saved to: {save_vid_path}")
@@ -167,7 +192,9 @@ class GaussianTrainer:
         K = batch['K'].to(self.device)                     # (B, 3, 3)
         R = batch['R'].to(self.device)                     # (B, 3, 3)
         t = batch['t'].to(self.device).reshape(-1, 3)      # (B, 3)
-        
+
+        iter_start = time.time()
+
         # Forward pass
         gaussian_params = self.model()
         rendered_images = self.renderer(
@@ -186,7 +213,10 @@ class GaussianTrainer:
 
         # Compute RGB loss
         loss = torch.abs(rendered_images - images).mean()
-        
+
+        mse = F.mse_loss(rendered_images, images)
+        psnr = -10.0 * torch.log10(mse)
+
         # Backward pass
         self.optimizer.zero_grad()
         loss.backward()
@@ -199,11 +229,56 @@ class GaussianTrainer:
         
         # Optimization step
         self.optimizer.step()
+
+        iter_time = time.time() - iter_start
+
+        self.iter_times.append(iter_time)
+        self.total_iterations += 1
+
+        process = psutil.Process(os.getpid())
+        ram_mb = process.memory_info().rss / 1024 ** 2
+
+        self.peak_ram_mb = max(
+            self.peak_ram_mb,
+            ram_mb
+        )
         
-        return loss.item(), rendered_images
+        return loss.item(), psnr.item(), rendered_images
+
+    def print_statistics(self):
+        num_gaussians = self.model.positions.shape[0]
+
+        model_mb = sum(
+            p.numel() * p.element_size()
+            for p in self.model.parameters()
+        ) / 1024 ** 2
+
+        avg_iter_time = np.mean(self.iter_times)
+
+        print("\n")
+        print("=" * 60)
+        print("TRAINING SUMMARY")
+        print("=" * 60)
+
+        print(f"Gaussians          : {num_gaussians:,}")
+        print(f"Training time      : {self.training_time:.2f} sec")
+        print(f"Training time      : {self.training_time / 60:.2f} min")
+        print(f"Iterations         : {self.total_iterations}")
+        print(f"Iter/sec           : {1 / avg_iter_time:.2f}")
+
+        print(f"Model size         : {model_mb:.2f} MB")
+        print(f"Peak RAM           : {self.peak_ram_mb:.2f} MB")
+
+        if hasattr(self, "avg_render_time"):
+            print(f"Render time/image  : {self.avg_render_time:.4f} sec")
+            print(f"FPS                : {self.fps:.2f}")
+
+        print("=" * 60)
 
     def train(self, train_loader: DataLoader):
         """Main training loop"""
+        self.train_start_time = time.time()
+
         # Select fixed indices for debugging
         if self.debug_indices is None:
             dataset_size = len(train_loader.dataset)
@@ -221,13 +296,16 @@ class GaussianTrainer:
             
             for batch_idx, batch in enumerate(pbar):
                 # Training step
-                loss, rendered_images = self.train_step(batch)
+                loss, psnr, rendered_images = self.train_step(batch)
                 epoch_loss += loss
                 num_batches += 1
                 
                 # Update progress bar
                 avg_loss = epoch_loss / num_batches
-                pbar.set_postfix({'loss': f"{avg_loss:.4f}"})
+                pbar.set_postfix({
+                    'loss': f"{avg_loss:.4f}",
+                    'psnr': f"{psnr:.2f}"
+                })
             
             # Save checkpoint
             if epoch % self.config.save_every == 0:
@@ -257,6 +335,10 @@ class GaussianTrainer:
                     image_paths=path_list,
                 )
 
+        self.training_time = (
+                time.time() - self.train_start_time
+        )
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train 3D Gaussian Splatting')
     
@@ -269,7 +351,7 @@ def parse_args():
                       help='Path to checkpoint to resume from')
     
     # Training parameters
-    parser.add_argument('--num_epochs', type=int, default=200,
+    parser.add_argument('--num_epochs', type=int, default=21,
                       help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=1,
                       help='Training batch size')
@@ -356,6 +438,8 @@ def main():
     print("Training completed!")
 
     trainer.visualize_rendering(dataset, os.path.join(args.checkpoint_dir, "debug_rendering.mp4"))
+
+    trainer.print_statistics()
 
 if __name__ == "__main__":
     main()
