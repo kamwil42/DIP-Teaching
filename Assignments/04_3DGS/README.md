@@ -284,7 +284,7 @@ python render_3dgs_mv.py \
 
 Output:
 
-<img src="data/chair/checkpoints/debug_rendering.mp4" alt="data overview" width="800">
+<img src="data/chair/render_mv.gif" width="800">
 
 The camera follows a circular orbit around the reconstructed scene.
 
@@ -338,13 +338,13 @@ However, the implementation exposes the complete mathematical pipeline in a comp
 
 ### Analysis of Differences
 
-1. **Rasterization Efficiency**: Official 3DGS uses optimized CUDA kernels that process only visible Gaussians within each tile. Our PyTorch implementation performs full tensor operations, which are significantly slower.
+1. **Rasterization Efficiency**: Official 3DGS uses optimized CUDA kernels that process only visible Gaussians within each tile. This PyTorch implementation performs full tensor operations, which are significantly slower.
 
-2. **Adaptive Densification**: The official implementation dynamically adds Gaussians where needed, allowing it to capture fine details. Our implementation uses a fixed number of Gaussians initialized from COLMAP points.
+2. **Adaptive Densification**: The official implementation dynamically adds Gaussians where needed, allowing it to capture fine details. This implementation uses a fixed number of Gaussians initialized from COLMAP points.
 
-3. **Resolution**: Operating at 100 × 100 (our implementation) vs. 800 × 800 (official) creates a fundamental quality gap, as finer details are lost in downsampling.
+3. **Resolution**: Operating at 100 × 100 (this implementation) vs. 800 × 800 (official) creates a fundamental quality gap, as finer details are lost in downsampling.
 
-4. **Appearance Modeling**: Official 3DGS uses Spherical Harmonics to model view-dependent colors. Our implementation uses per-Gaussian RGB colors, limiting reflectance and specular effects.
+4. **Appearance Modeling**: Official 3DGS uses Spherical Harmonics to model view-dependent colors. This implementation uses per-Gaussian RGB colors, limiting reflectance and specular effects.
 
 5. **Numerical Stability**: The simplified implementation requires explicit handling of covariance stability (positive definiteness), alpha clamping, and gradient clipping to avoid numerical issues.
 
