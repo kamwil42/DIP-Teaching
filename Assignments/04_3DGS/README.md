@@ -12,7 +12,7 @@ The goal is to provide a clear and educational implementation of the complete 3D
 
 # Features
 
-Pipeline Components:
+Pipeline components:
 
 * Structure-from-Motion using COLMAP for camera pose estimation and sparse point cloud generation
 * Gaussian parameter initialization from COLMAP sparse points
@@ -22,7 +22,7 @@ Pipeline Components:
 * Differentiable alpha compositing for image rendering
 * End-to-end optimization with gradient-based parameter updates
 
-Training & Visualization:
+Training and visualization:
 
 * Training visualization with ground-truth comparisons
 * Automatic checkpointing at configurable intervals
@@ -35,10 +35,10 @@ Training & Visualization:
 
 ```text
 .
-├── gaussian_model.py               # 3D Gaussian parameterization & covariance
-├── gaussian_renderer.py            # Projection, rasterization & compositing
+├── gaussian_model.py               # 3D Gaussian parameterization and covariance
+├── gaussian_renderer.py            # Projection, rasterization and compositing
 ├── train.py                        # Main training script
-├── data_utils.py                   # Dataset loading & preprocessing
+├── data_utils.py                   # Dataset loading and preprocessing
 ├── mvs_with_colmap.py              # COLMAP reconstruction pipeline
 ├── debug_mvs_by_projecting_pts.py  # Point cloud validation
 ├── render_3dgs_mv.py               # Video rendering from trained model
@@ -57,22 +57,7 @@ Training & Visualization:
 The reconstruction pipeline consists of stages:
 
 ```text
-Multi-view Images
-        │
-        ▼
-     COLMAP
-        │
-        ▼
- Sparse Point Cloud
-        │
-        ▼
-3D Gaussian Initialization
-        │
-        ▼
-Differentiable Rendering
-        │
-        ▼
-Gradient-Based Optimization
+Multi-view Images -> COLMAP -> Sparse Point Cloud -> 3D Gaussian Initialization -> Differentiable Rendering -> Gradient-Based Optimization
 ```
 
 ---
@@ -193,7 +178,7 @@ data/chair/
 └── sparse/                    # COLMAP reconstruction
     └── 0/
         ├── cameras.bin        # Camera parameters
-        ├── images.bin         # Image metadata & poses
+        ├── images.bin         # Image metadata and poses
         └── points3D.bin       # Sparse 3D points
 ```
 
@@ -355,36 +340,6 @@ Despite the performance gap, this implementation serves a crucial educational pu
 - **Modularity**: Each component (projection, covariance, compositing) can be studied independently
 - **Accessibility**: Runs on CPU, enabling experimentation without expensive GPU hardware
 - **Learning**: Provides a clear path from 3DGS theory to working implementation
-
----
-
----
-
-## Environment Setup
-
-### Recommended Environment
-```bash
-conda create -n 3dgs python=3.10
-conda activate 3dgs
-
-pip install torch torchvision
-pip install numpy opencv-python tqdm
-pip install pycolmap
-```
-
-### Project Dependencies
-- **PyTorch** 2.7.0+cu128
-- **PyTorch3D** 0.7.9 (for quaternion operations)
-- **NumPy** for numerical operations
-- **OpenCV** for image I/O and video generation
-- **tqdm** for progress bars
-- **natsort** for natural sorting of image filenames
-- **COLMAP** (external) for Structure-from-Motion
-
-### Platform Compatibility
-- **Tested on:** Windows 11 with PowerShell
-- **GPU Support:** Optional (CUDA-enabled PyTorch recommended for faster training)
-- **CPU Fallback:** Fully functional on CPU-only systems
 
 ---
 
