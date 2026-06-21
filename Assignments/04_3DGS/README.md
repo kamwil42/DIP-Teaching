@@ -284,7 +284,7 @@ python render_3dgs_mv.py \
 
 Output:
 
-<img src="data/chair/render_mv.gif" width="800">
+<img src="data/chair/render_mv.gif">
 
 The camera follows a circular orbit around the reconstructed scene.
 
